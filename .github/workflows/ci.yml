@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-api:
+    name: Test API
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: api/package-lock.json
+    
+    - name: Install API dependencies
+      run: |
+        cd api
+        npm ci
+    
+    - name: Generate Prisma client
+      run: |
+        cd api
+        npx prisma generate
+    
+    - name: Run API tests
+      run: |
+        cd api
+        npm test
+    
+    - name: Run API linting
+      run: |
+        cd api
+        npm run lint
+    
+    - name: Run API type checking
+      run: |
+        cd api
+        npm run typecheck
+    
+    - name: Build API
+      run: |
+        cd api
+        npm run build
+
+  test-web:
+    name: Test Web
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+    
+    - name: Install Web dependencies
+      run: |
+        cd web
+        npm ci
+    
+    - name: Run Web tests
+      run: |
+        cd web
+        npm test
+    
+    - name: Run Web linting
+      run: |
+        cd web
+        npm run lint
+    
+    - name: Run Web type checking
+      run: |
+        cd web
+        npm run typecheck
+    
+    - name: Build Web
+      run: |
+        cd web
+        npm run build
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: [test-api, test-web]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+    
+    - name: Install root dependencies
+      run: npm ci
+    
+    - name: Setup API
+      run: |
+        cd api
+        npm ci
+        npx prisma generate
+        npx prisma db push
+        npm run db:seed
+    
+    - name: Setup Web
+      run: |
+        cd web
+        npm ci
+    
+    - name: Start API in background
+      run: |
+        cd api
+        npm run dev &
+        sleep 10
+    
+    - name: Test API health
+      run: |
+        curl -f http://localhost:4000/health
+    
+    - name: Build Web
+      run: |
+        cd web
+        npm run build

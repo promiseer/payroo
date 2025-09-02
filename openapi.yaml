@@ -1,0 +1,510 @@
+openapi: 3.1.0
+info:
+  title: Payroo Mini Payrun API
+  version: 1.0.0
+  description: A mini payroll system for calculating pay runs from employee timesheets
+servers:
+  - url: http://localhost:4000
+    description: Local development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token authentication (any non-empty token accepted for demo)
+
+  schemas:
+    Employee:
+      type: object
+      required: [id, firstName, lastName, type, baseHourlyRate, superRate]
+      properties:
+        id: 
+          type: string
+          description: Unique employee identifier
+        firstName: 
+          type: string
+          description: Employee first name
+        lastName: 
+          type: string
+          description: Employee last name
+        type: 
+          type: string
+          enum: [hourly]
+          description: Employee type (only hourly supported)
+        baseHourlyRate: 
+          type: number
+          minimum: 0
+          description: Base hourly rate in dollars
+        superRate: 
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Superannuation rate as decimal (0.115 = 11.5%)
+        bank:
+          type: object
+          properties:
+            bsb: 
+              type: string
+              pattern: '^\d{3}-\d{3}$'
+              description: Bank BSB number in format XXX-XXX
+            account: 
+              type: string
+              minLength: 6
+              description: Bank account number
+
+    TimesheetEntry:
+      type: object
+      required: [date, start, end, unpaidBreakMins]
+      properties:
+        date: 
+          type: string
+          format: date
+          description: Work date in YYYY-MM-DD format
+        start: 
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "09:00"
+          description: Start time in HH:MM format
+        end: 
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          example: "17:30"
+          description: End time in HH:MM format
+        unpaidBreakMins: 
+          type: integer
+          minimum: 0
+          description: Unpaid break time in minutes
+
+    Timesheet:
+      type: object
+      required: [employeeId, periodStart, periodEnd, entries]
+      properties:
+        employeeId: 
+          type: string
+          description: Employee identifier
+        periodStart: 
+          type: string
+          format: date
+          description: Period start date in YYYY-MM-DD format
+        periodEnd: 
+          type: string
+          format: date
+          description: Period end date in YYYY-MM-DD format
+        entries:
+          type: array
+          items: 
+            $ref: '#/components/schemas/TimesheetEntry'
+          description: Array of timesheet entries
+        allowances: 
+          type: number
+          minimum: 0
+          default: 0
+          description: Additional allowances in dollars
+
+    PayrunRequest:
+      type: object
+      required: [periodStart, periodEnd]
+      properties:
+        periodStart: 
+          type: string
+          format: date
+          description: Payrun period start date in YYYY-MM-DD format
+        periodEnd: 
+          type: string
+          format: date
+          description: Payrun period end date in YYYY-MM-DD format
+        employeeIds:
+          type: array
+          items: 
+            type: string
+          description: Optional list of specific employee IDs to include
+
+    Payslip:
+      type: object
+      properties:
+        employeeId: 
+          type: string
+          description: Employee identifier
+        normalHours: 
+          type: number
+          minimum: 0
+          description: Normal hours worked
+        overtimeHours: 
+          type: number
+          minimum: 0
+          description: Overtime hours worked (above 38 hours per week)
+        gross: 
+          type: number
+          minimum: 0
+          description: Gross pay amount
+        tax: 
+          type: number
+          minimum: 0
+          description: Tax amount deducted
+        super: 
+          type: number
+          minimum: 0
+          description: Superannuation amount
+        net: 
+          type: number
+          description: Net pay amount (gross - tax)
+
+    PayrunTotals:
+      type: object
+      properties:
+        gross: 
+          type: number
+          minimum: 0
+          description: Total gross pay
+        tax: 
+          type: number
+          minimum: 0
+          description: Total tax deducted
+        super: 
+          type: number
+          minimum: 0
+          description: Total superannuation
+        net: 
+          type: number
+          description: Total net pay
+
+    Payrun:
+      type: object
+      properties:
+        id: 
+          type: string
+          description: Unique payrun identifier
+        periodStart: 
+          type: string
+          format: date
+          description: Payrun period start date
+        periodEnd: 
+          type: string
+          format: date
+          description: Payrun period end date
+        totals:
+          $ref: '#/components/schemas/PayrunTotals'
+        payslips:
+          type: array
+          items: 
+            $ref: '#/components/schemas/Payslip'
+          description: Array of employee payslips
+        createdAt:
+          type: string
+          format: date-time
+          description: Payrun creation timestamp
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Error message
+        details:
+          type: array
+          items:
+            type: object
+          description: Validation error details (optional)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the API
+      security: []
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                  environment:
+                    type: string
+
+  /employees:
+    get:
+      summary: List all employees
+      description: Retrieve a list of all employees
+      responses:
+        '200':
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Employee'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create or update an employee
+      description: Create a new employee or update an existing one
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Employee'
+      responses:
+        '201':
+          description: Employee created or updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Employee'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /timesheets:
+    post:
+      summary: Create or replace a timesheet
+      description: Create or replace a timesheet for an employee and period
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Timesheet'
+      responses:
+        '201':
+          description: Timesheet created or updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Timesheet'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /payruns:
+    post:
+      summary: Generate a payrun
+      description: Generate a payrun for a specified period and optional employee subset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayrunRequest'
+      responses:
+        '201':
+          description: Payrun generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payrun'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Employee(s) not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: List all payruns
+      description: Retrieve a list of all generated payruns
+      responses:
+        '200':
+          description: List of payruns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payrun'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /payruns/{id}:
+    get:
+      summary: Get a payrun by ID
+      description: Retrieve a specific payrun by its ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Payrun ID
+      responses:
+        '200':
+          description: Payrun details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payrun'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Payrun not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /payslips/{employeeId}/{payrunId}:
+    get:
+      summary: Get a payslip
+      description: Get a specific employee payslip for a payrun
+      parameters:
+        - in: path
+          name: employeeId
+          required: true
+          schema:
+            type: string
+          description: Employee ID
+        - in: path
+          name: payrunId
+          required: true
+          schema:
+            type: string
+          description: Payrun ID
+      responses:
+        '200':
+          description: Payslip details with context
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Payslip'
+                  - type: object
+                    properties:
+                      employee:
+                        type: object
+                        properties:
+                          firstName:
+                            type: string
+                          lastName:
+                            type: string
+                      payrun:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          periodStart:
+                            type: string
+                            format: date
+                          periodEnd:
+                            type: string
+                            format: date
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Payslip not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

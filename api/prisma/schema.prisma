@@ -1,0 +1,106 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Employee {
+  id              String  @id
+  firstName       String
+  lastName        String
+  type            String  // 'hourly'
+  baseHourlyRate  Float
+  superRate       Float
+  bankBsb         String?
+  bankAccount     String?
+  
+  // Relations
+  timesheets      Timesheet[]
+  payslips        Payslip[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("employees")
+}
+
+model Timesheet {
+  id            String    @id @default(uuid())
+  employeeId    String
+  periodStart   String    // YYYY-MM-DD
+  periodEnd     String    // YYYY-MM-DD  
+  allowances    Float     @default(0)
+  
+  // Relations
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  entries       TimesheetEntry[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([employeeId, periodStart, periodEnd])
+  @@map("timesheets")
+}
+
+model TimesheetEntry {
+  id              String    @id @default(uuid())
+  timesheetId     String
+  date            String    // YYYY-MM-DD
+  start           String    // HH:MM
+  end             String    // HH:MM
+  unpaidBreakMins Int
+  
+  // Relations
+  timesheet       Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime  @default(now())
+  
+  @@map("timesheet_entries")
+}
+
+model Payrun {
+  id            String    @id @default(uuid())
+  periodStart   String    // YYYY-MM-DD
+  periodEnd     String    // YYYY-MM-DD
+  
+  // Totals
+  totalGross    Float
+  totalTax      Float
+  totalSuper    Float
+  totalNet      Float
+  
+  // Relations
+  payslips      Payslip[]
+  
+  createdAt     DateTime  @default(now())
+
+  @@map("payruns")
+}
+
+model Payslip {
+  id            String    @id @default(uuid())
+  payrunId      String
+  employeeId    String
+  
+  normalHours   Float
+  overtimeHours Float
+  gross         Float
+  tax           Float
+  super         Float
+  net           Float
+  
+  // Relations  
+  payrun        Payrun    @relation(fields: [payrunId], references: [id], onDelete: Cascade)
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  
+  createdAt     DateTime  @default(now())
+  
+  @@unique([payrunId, employeeId])
+  @@map("payslips")
+}

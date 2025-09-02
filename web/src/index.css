@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for better accessibility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+  @apply absolute -top-full left-6 z-50 bg-blue-600 text-white px-4 py-2 rounded-b-md;
+  @apply transition-all duration-300;
+}
+
+.skip-link:focus {
+  @apply top-0;
+}

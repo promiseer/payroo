@@ -1,0 +1,56 @@
+{
+  "name": "payroo",
+  "version": "1.0.0",
+  "description": "Payroo Mini Payrun System - Full-stack TypeScript application",
+  "private": true,
+  "workspaces": [
+    "api",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "cd api && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "cd api && npm run build",
+    "build:web": "cd web && npm run build",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": "cd api && npm test",
+    "test:web": "cd web && npm test",
+    "lint": "npm run lint:api && npm run lint:web",
+    "lint:api": "cd api && npm run lint",
+    "lint:web": "cd web && npm run lint",
+    "typecheck": "npm run typecheck:api && npm run typecheck:web",
+    "typecheck:api": "cd api && npm run typecheck",
+    "typecheck:web": "cd web && npm run typecheck",
+    "setup": "npm install && cd api && npm install && cd ../web && npm install",
+    "db:setup": "cd api && npm run db:generate && npm run db:push && npm run db:seed",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up",
+    "docker:down": "docker-compose down",
+    "clean": "npm run clean:api && npm run clean:web",
+    "clean:api": "cd api && npm run clean",
+    "clean:web": "cd web && rm -rf dist"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "payroll",
+    "typescript",
+    "react",
+    "nodejs",
+    "express",
+    "prisma"
+  ],
+  "author": "Payroo Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/payroo.git"
+  }
+}
